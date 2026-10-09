@@ -10,6 +10,8 @@
 | **Domain** | Monitoring and Tracking Technologies for Mines |
 | **Timeline / budget** | 24 weeks, about ₹12,500 (lab prototype) |
 
+![Smart Sump system overview: open-cast sump with WiFi level sensors, centrifugal pump driven by the motor controller, sedimentation tank with a high-level stop, and the water filling point, monitored from a phone or web dashboard](docs/img/system-overview.jpg)
+
 ---
 
 ## 1. The problem
@@ -66,6 +68,8 @@ flowchart LR
 | Operator | AUTO / MANUAL, set-points, alarm acknowledge, dry-run reset |
 
 ### Control logic (identical in simulator and firmware)
+
+<p align="center"><img src="docs/img/control-flowchart.png" width="720" alt="Control flowchart: check tank full, then sump high (start), sump low (stop), dry run (stop + alarm), then compute time-to-overflow and publish over MQTT"></p>
 
 The controller checks these rules every 0.5 s, in priority order:
 
@@ -139,7 +143,7 @@ smart-sump/
 
 **Phase 1: simulator + MQTT + dashboard (no hardware needed)**
 - [x] Git repo, project description, site config
-- [ ] Control logic (`simulator/control.py`) with pytest for every rule
+- [x] Control logic (`simulator/control.py`) with pytest for every rule (29 tests passing)
 - [ ] Water-balance physics + scenarios + offline simulator run
 - [ ] Simulator publishes over MQTT and obeys dashboard commands
 - [ ] Mosquitto broker (WebSocket listener + password auth)
@@ -169,9 +173,9 @@ pip install -r simulator\requirements.txt
 ```powershell
 python -m pytest
 ```
-You should see every test pass, ending in a line like `NN passed`.
+You should see every test pass, ending in a line like `29 passed`.
 
-### Run the simulator (offline, no broker needed yet)
+### Run the simulator (offline, no broker needed yet) *(in progress)*
 ```powershell
 python simulator\sim.py --scenario normal --no-mqtt --speed 0 --duration 3600
 python simulator\sim.py --scenario heavy_rain --no-mqtt --speed 20
