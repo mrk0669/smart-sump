@@ -230,4 +230,4 @@ python simulator\sim.py --scenario heavy_rain --no-mqtt --speed 20
 14. **Acknowledging an alarm is a logbook entry, not a reset.** "Ack" is stored by the logger. Only the device can clear an alarm, and only `DRY_RUN` accepts a reset command.
 15. **The logger fixes 1970 timestamps.** An ESP32 that hasn't synced its clock yet reports dates in 1970. The logger replaces any time before 2020 with the time it received the message.
 16. **React dashboard instead of Node-RED.** The proposal deck mentioned Node-RED. A React dashboard is easier to make mobile-first and to show to the panel.
-17. **Project lives on D:sump.** The C: drive was full.
+17. **Project lives on D:\sump.** The C: drive was full.
