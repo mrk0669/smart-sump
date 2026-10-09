@@ -130,10 +130,16 @@ smart-sump/
 │   ├── control.py         #   THE control logic: pure, tested, mirrored in firmware
 │   ├── physics.py         #   water balance: sump, pump, tank, filling point
 │   ├── scenarios.py       #   normal / heavy_rain / dry_run / tank_full / wifi_drop / sensor_fault
-│   ├── sim.py             #   runs it all, prints or publishes over MQTT
+│   ├── sim.py             #   runs it all, publishes over MQTT, obeys dashboard commands
 │   └── tests/             #   pytest: every control rule + hysteresis
+├── logger/                # MQTT → SQLite, REST API, CSV export, reports, Telegram alerts
+│   ├── ingest.py          #   subscribes to every device and stores what it says
+│   ├── main.py            #   the REST API (FastAPI): history, events, reports, CSV
+│   ├── reports.py         #   daily pump hours, m³, cycles, kWh, ₹
+│   ├── alerts.py          #   Telegram (skipped quietly if no token)
+│   └── tests/
+├── tools/dev_broker.py    # MQTT broker in Python, for laptops without Docker
 ├── mosquitto/             # broker config + password file             (coming)
-├── logger/                # FastAPI + SQLite + Telegram alerts         (coming)
 ├── dashboard/             # React + Vite + TypeScript + Tailwind       (coming)
 ├── firmware/              # PlatformIO ESP32 project                   (Phase 2)
 └── docker-compose.yml     # one command starts broker, logger, dashboard (coming)
@@ -145,9 +151,10 @@ smart-sump/
 - [x] Git repo, project description, site config
 - [x] Control logic (`simulator/control.py`) with pytest for every rule (33 tests passing)
 - [x] Water-balance physics + 6 scenarios + offline simulator run
-- [ ] Simulator publishes over MQTT and obeys dashboard commands
-- [ ] Mosquitto broker (WebSocket listener + password auth)
-- [ ] Logger: SQLite history, REST API, CSV export, Telegram alerts
+- [x] Simulator publishes over MQTT and obeys dashboard commands (Last Will, event queue during WiFi loss)
+- [x] Dev broker for laptops without Docker (`tools/dev_broker.py`: same ports, same login)
+- [ ] Mosquitto broker in Docker (WebSocket listener + password auth)
+- [x] Logger: SQLite history, REST API, CSV export, daily report, Telegram alerts (9 tests)
 - [ ] Dashboard: live overview (animated SVG), trends, alarms, settings, reports
 - [ ] `docker compose up` brings up broker + logger + dashboard
 
@@ -163,19 +170,31 @@ smart-sump/
 Python 3.10 or newer from [python.org](https://www.python.org/downloads/). Tick **"Add python.exe to PATH"** during install.
 
 ```powershell
-cd D:\dev\smart-sump
+cd D:\sump
 python -m venv .venv                     # a private Python just for this project
 .venv\Scripts\activate                   # your prompt now starts with (.venv)
-pip install -r simulator\requirements.txt
+pip install -r requirements-dev.txt      # simulator + logger + dev broker + test tools
+copy .env.example .env                   # then edit .env: set your own MQTT password
 ```
 
 ### Run the tests
 ```powershell
 python -m pytest
 ```
-You should see every test pass, ending in a line like `33 passed`.
+You should see every test pass, ending in a line like `42 passed`.
 
-### Run the simulator (offline, no broker needed yet)
+### Run the whole system without Docker
+Open three terminals in `D:\sump` (each with `.venv\Scripts\activate`):
+
+```powershell
+python tools\dev_broker.py                            # 1. MQTT broker (ports 1883 + 9001)
+python -m logger                                      # 2. logger + API on http://localhost:8000
+python simulator\sim.py --scenario heavy_rain --speed 10   # 3. the "pit"
+```
+
+Then open **http://localhost:8000/docs** to try the API: history, events, the daily report and CSV downloads. To get alarms on your phone, put a Telegram bot token and chat id in `.env`.
+
+### Run the simulator on its own (no broker needed)
 ```powershell
 python simulator\sim.py --scenario normal --no-mqtt --speed 0 --duration 2400
 python simulator\sim.py --scenario heavy_rain --no-mqtt --speed 20
@@ -205,5 +224,10 @@ python simulator\sim.py --scenario heavy_rain --no-mqtt --speed 20
 8. **Lab numbers are in `config/site.yaml`.** The 80 L sump, 100 L tank and 30 L/min pump are starting guesses. Replace them with measured values. `overflow_warn_min` is 3 min for the lab instead of 30 min for the mine, because small tanks fill about 100× faster.
 9. **Ultrasonic pings must agree.** Each burst of 5 pings is median-filtered, *and* at least 3 pings must lie within 2 cm of each other. The simulator found that a burst with one missing ping and two wild echoes produced a bogus "tank empty" reading, which released the tank-full lockout.
 10. **A sump at ≥ 98 % counts as overflowing.** A spilling sump can't rise any further, so its trend goes flat. The overflow alarm is held on until the level drops below 95 %. Without this the alarm flickered (another simulator find).
-11. **React dashboard instead of Node-RED.** The proposal deck mentioned Node-RED. A React dashboard is easier to make mobile-first and to show to the panel.
-12. **Project lives on D:.** The C: drive was full.
+11. **Commands are queued, then applied between control cycles.** The MQTT library runs in its own thread. If commands touched the controller directly, two threads could change it at once. Instead they wait in a queue, and the control loop picks them up.
+12. **The device checks every incoming topic itself.** The dev broker was caught delivering a retained `status` message to the `cmd/#` subscription. The firmware will not trust the broker to filter for it either.
+13. **Events survive a WiFi drop; telemetry does not.** Events are queued (up to 100) and sent on reconnect with their original time. Old telemetry is worthless once a fresh reading exists, so it is dropped.
+14. **Acknowledging an alarm is a logbook entry, not a reset.** "Ack" is stored by the logger. Only the device can clear an alarm, and only `DRY_RUN` accepts a reset command.
+15. **The logger fixes 1970 timestamps.** An ESP32 that hasn't synced its clock yet reports dates in 1970. The logger replaces any time before 2020 with the time it received the message.
+16. **React dashboard instead of Node-RED.** The proposal deck mentioned Node-RED. A React dashboard is easier to make mobile-first and to show to the panel.
+17. **Project lives on D:sump.** The C: drive was full.

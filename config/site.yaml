@@ -10,6 +10,7 @@
 site:
   site_id: vnit-lab
   device_id: node01
+  utc_offset_min: 330     # India (IST = UTC+5:30), for "daily" reports
 
 mqtt:
   host: localhost

@@ -1,3 +1,4 @@
-pyyaml>=6.0       # reads config/site.yaml
-paho-mqtt>=2.1    # MQTT client (same protocol the ESP32 will speak)
-pytest>=8.0       # unit tests for the control logic
+pyyaml>=6.0         # reads config/site.yaml
+paho-mqtt>=2.1      # MQTT client (same protocol the ESP32 will speak)
+python-dotenv>=1.0  # reads the MQTT login from .env
+pytest>=8.0         # unit tests for the control logic

@@ -1,0 +1,5 @@
+fastapi>=0.115           # REST API for history, CSV export, reports
+uvicorn[standard]>=0.30  # web server that runs the FastAPI app
+paho-mqtt>=2.1           # subscribes to the device topics
+pyyaml>=6.0              # reads config/site.yaml (tariff, voltage...)
+python-dotenv>=1.0       # reads the MQTT login and Telegram token from .env

@@ -1,0 +1,6 @@
+# Everything needed to run and test the Python side on your laptop:
+#   pip install -r requirements-dev.txt
+-r simulator/requirements.txt
+-r logger/requirements.txt
+amqtt>=0.12   # tools/dev_broker.py: MQTT broker for when Docker isn't installed
+httpx>=0.27   # lets pytest call the logger's API
