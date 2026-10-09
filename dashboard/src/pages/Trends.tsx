@@ -5,7 +5,7 @@
 import { useMemo, useState } from "react";
 import { Area, CartesianGrid, ComposedChart, Line, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { Banner, Card, Empty, Segmented } from "../components/ui";
-import { nowS, query, useApi } from "../lib/api";
+import { query, useApi } from "../lib/api";
 import { num } from "../lib/format";
 import { useSump } from "../lib/sump";
 
@@ -24,16 +24,16 @@ interface Point {
 const AXIS = { stroke: "var(--axis)", tick: { fill: "var(--muted)", fontSize: 12 }, tickLine: false };
 
 export function Trends() {
-  const { device } = useSump();
+  const { device, clock, virtual } = useSump();
   const [range, setRange] = useState<Range>("1h");
   const cfg = device?.config;
 
   // The path is rebuilt on every refresh, so the window slides forward with time.
   const { data, error } = useApi<{ since: number; until: number; points: Point[] }>(
     device ? () => `/telemetry?${query({ site: device.site, device: device.device,
-      since: nowS() - RANGE_S[range], max_points: 600 })}` : null,
+      since: Math.floor(clock()) - RANGE_S[range], max_points: 600 })}` : null,
     [range, device?.key],
-    range === "1h" ? 10_000 : 60_000,
+    virtual ? 2_000 : range === "1h" ? 10_000 : 60_000,
   );
 
   const points = useMemo(() => (data?.points ?? []).map((p) => ({ ...p, pumpBand: p.pump_on ? 100 : 0 })), [data]);

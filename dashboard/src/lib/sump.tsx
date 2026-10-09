@@ -43,7 +43,7 @@ function reducer(state: Record<string, Device>, a: Action): Record<string, Devic
   }
 }
 
-interface SumpCtx {
+export interface SumpCtx {
   conn: ConnState;
   error: string | null;
   devices: Device[];
@@ -53,9 +53,15 @@ interface SumpCtx {
   send: (cmd: "mode" | "pump" | "reset" | "config", payload: object) => boolean;
   /** Bumped on every live event, so pages can refresh history from the logger. */
   eventTick: number;
+  /** "Now" in Unix seconds: the wall clock, or the simulated clock in the virtual sump. */
+  clock: () => number;
+  /** True in the phone app, where a simulated sump replaces the real device. */
+  virtual: boolean;
 }
 
-const Ctx = createContext<SumpCtx | null>(null);
+export const SumpContext = createContext<SumpCtx | null>(null);
+const Ctx = SumpContext;
+const wallClock = () => Date.now() / 1000;
 
 export function SumpProvider({ login, onAuthFailed, children }: {
   login: Login;
@@ -150,7 +156,9 @@ export function SumpProvider({ login, onAuthFailed, children }: {
   );
 
   return (
-    <Ctx.Provider value={{ conn, error, devices: list, device, select, send, eventTick }}>{children}</Ctx.Provider>
+    <Ctx.Provider value={{ conn, error, devices: list, device, select, send, eventTick, clock: wallClock, virtual: false }}>
+      {children}
+    </Ctx.Provider>
   );
 }
 

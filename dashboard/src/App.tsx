@@ -1,4 +1,4 @@
-import { Bell, ChartLine, FileText, Gauge, LogOut, Monitor, Moon, SlidersHorizontal, Sun } from "lucide-react";
+import { Bell, Calculator as CalcIcon, ChartLine, FileText, Gauge, LogOut, Monitor, Moon, SlidersHorizontal, Sun } from "lucide-react";
 import { lazy, Suspense, useCallback, useEffect, useState } from "react";
 import { LoginScreen } from "./components/Login";
 import { Banner } from "./components/ui";
@@ -6,23 +6,30 @@ import { ago, rssiBars } from "./lib/format";
 import { SumpProvider, useNow, useSump, type Login } from "./lib/sump";
 import { useTheme, type Theme } from "./lib/theme";
 import { Alarms } from "./pages/Alarms";
+import { Calculator } from "./pages/Calculator";
 import { Overview } from "./pages/Overview";
 import { Settings } from "./pages/Settings";
+import { useSimOptional, VirtualProvider } from "./virtual/VirtualProvider";
 
 // The chart pages pull in the charting library (~half the code), so they load
 // only when opened. The Overview page stays quick on a phone over mine WiFi.
 const Trends = lazy(() => import("./pages/Trends").then((m) => ({ default: m.Trends })));
 const Reports = lazy(() => import("./pages/Reports").then((m) => ({ default: m.Reports })));
 
+// The phone app (`npm run build:apk`) runs a virtual sump instead of
+// connecting to a real device.
+const VIRTUAL = import.meta.env.VITE_VIRTUAL === "1";
+
 const LOGIN_KEY = "smartsump.login";
 const STALE_MS = 10_000; // "last update" turns red after 10 s without telemetry
 
 const PAGES = [
-  { id: "overview", label: "Overview", Icon: Gauge, Page: Overview },
-  { id: "trends", label: "Trends", Icon: ChartLine, Page: Trends },
-  { id: "alarms", label: "Alarms", Icon: Bell, Page: Alarms },
-  { id: "settings", label: "Settings", Icon: SlidersHorizontal, Page: Settings },
-  { id: "reports", label: "Reports", Icon: FileText, Page: Reports },
+  { id: "overview", label: "Overview", short: "Overview", Icon: Gauge, Page: Overview },
+  { id: "trends", label: "Trends", short: "Trends", Icon: ChartLine, Page: Trends },
+  { id: "alarms", label: "Alarms", short: "Alarms", Icon: Bell, Page: Alarms },
+  { id: "settings", label: "Settings", short: "Settings", Icon: SlidersHorizontal, Page: Settings },
+  { id: "reports", label: "Reports", short: "Reports", Icon: FileText, Page: Reports },
+  { id: "calculator", label: "Calculator", short: "Calc", Icon: CalcIcon, Page: Calculator },
 ] as const;
 type PageId = (typeof PAGES)[number]["id"];
 
@@ -36,6 +43,16 @@ function readLogin(): Login | null {
 }
 
 export default function App() {
+  return VIRTUAL ? (
+    <VirtualProvider>
+      <Shell />
+    </VirtualProvider>
+  ) : (
+    <LiveApp />
+  );
+}
+
+function LiveApp() {
   const [login, setLogin] = useState<Login | null>(readLogin);
   const [authError, setAuthError] = useState<string | null>(null);
 
@@ -90,10 +107,16 @@ function usePage(): [PageId, (p: PageId) => void] {
   return [page, (p) => (location.hash = p)];
 }
 
-function Shell({ onLogout }: { onLogout: () => void }) {
+function Shell({ onLogout }: { onLogout?: () => void }) {
   const { conn, devices, device, select } = useSump();
+  const sim = useSimOptional();
   const [page, setPage] = usePage();
   const [theme, setTheme] = useTheme();
+  // Each page opens at the top. (Braces matter: newer browsers make scrollTo
+  // return a Promise, and an effect must return nothing or a cleanup function.)
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [page]);
   const now = useNow();
   const Page = PAGES.find((p) => p.id === page)!.Page;
 
@@ -123,7 +146,9 @@ function Shell({ onLogout }: { onLogout: () => void }) {
                 ))}
               </select>
             ) : (
-              <div className="text-sm text-ink-2">{device?.key ?? "no device yet"}</div>
+              <div className="text-sm text-ink-2">
+                {sim ? `Virtual sump · ${sim.profile.label}` : (device?.key ?? "no device yet")}
+              </div>
             )}
           </div>
 
@@ -143,9 +168,11 @@ function Shell({ onLogout }: { onLogout: () => void }) {
               aria-label={`Theme: ${theme}. Change`} title={`Theme: ${theme}`}>
               <ThemeIcon className="size-5" />
             </button>
-            <button onClick={onLogout} className="rounded-lg p-2 text-ink-2 hover:bg-grid" aria-label="Sign out" title="Sign out">
-              <LogOut className="size-5" />
-            </button>
+            {onLogout && (
+              <button onClick={onLogout} className="rounded-lg p-2 text-ink-2 hover:bg-grid" aria-label="Sign out" title="Sign out">
+                <LogOut className="size-5" />
+              </button>
+            )}
           </div>
         </div>
 
@@ -179,14 +206,14 @@ function Shell({ onLogout }: { onLogout: () => void }) {
       </main>
 
       {/* bottom bar (phones): big thumb-sized targets */}
-      <nav className="no-print fixed inset-x-0 bottom-0 z-10 grid grid-cols-5 border-t border-line bg-page pb-[env(safe-area-inset-bottom)] md:hidden"
+      <nav className="no-print fixed inset-x-0 bottom-0 z-10 grid grid-cols-6 border-t border-line bg-page pb-[env(safe-area-inset-bottom)] md:hidden"
         aria-label="Pages">
-        {PAGES.map(({ id, label, Icon }) => (
+        {PAGES.map(({ id, short, Icon }) => (
           <button key={id} onClick={() => setPage(id)} aria-current={page === id ? "page" : undefined}
-            className={`relative flex min-h-14 flex-col items-center justify-center gap-0.5 text-xs font-semibold ${
+            className={`relative flex min-h-14 flex-col items-center justify-center gap-0.5 text-[11px] font-semibold ${
               page === id ? "text-ink" : "text-muted"}`}>
             <Icon className="size-5" />
-            {label}
+            {short}
             {id === "alarms" && alarmCount > 0 && (
               <span className="absolute top-1.5 left-1/2 ml-2"><Count n={alarmCount} /></span>
             )}

@@ -8,7 +8,16 @@ export function query(params: Record<string, string | number | undefined>): stri
   return new URLSearchParams(entries.map(([k, v]) => [k, String(v)])).toString();
 }
 
+// In the phone app there is no logger: a local function answers the same
+// requests from the virtual sump's own history (see sim/virtual.ts).
+type LocalApi = (path: string, init?: RequestInit) => unknown;
+let localApi: LocalApi | null = null;
+export const setLocalApi = (fn: LocalApi | null) => {
+  localApi = fn;
+};
+
 export async function api<T>(path: string, init?: RequestInit): Promise<T> {
+  if (localApi) return localApi(path, init) as T;
   const r = await fetch(`/api${path}`, init);
   if (!r.ok) throw new Error(`${r.status} ${r.statusText}`);
   return r.json() as Promise<T>;

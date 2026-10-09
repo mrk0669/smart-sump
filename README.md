@@ -12,6 +12,8 @@
 
 ![Smart Sump system overview: open-cast sump with WiFi level sensors, centrifugal pump driven by the motor controller, sedimentation tank with a high-level stop, and the water filling point, monitored from a phone or web dashboard](docs/img/system-overview.jpg)
 
+> 📱 **Try it on your phone:** the **Smart Sump Virtual** Android app runs the whole system, a simulated sump plus the real control logic, offline on the phone. It includes a sump calculator. See [Phone app](#-phone-app-the-virtual-sump).
+
 ---
 
 ## 1. The problem
@@ -160,6 +162,30 @@ smart-sump/
 
 Screenshots from the simulator's `heavy_rain` scenario. Operators sign in with the site's MQTT login. **Overview** shows the live system and big readouts, with AUTO/MANUAL and Start/Stop; every action asks for confirmation and waits for the device to confirm it. **Trends** has level, flow and current over 1 h / 24 h / 7 d, with the set-points drawn in and pump-running periods shaded. **Alarms** lists active alarms and the history, with acknowledge and dry-run reset. **Settings** edits the set-points, checked here and again on the device. **Reports** shows daily pump hours, m³, starts, kWh and ₹, with CSV download and print. Light, dark and phone layouts are all supported.
 
+### 📱 Phone app: the virtual sump
+
+<p align="center">
+  <img src="docs/img/app-virtual-sump.jpg" width="30%" alt="Phone app: the virtual sump panel (site, scenario, speed) above the live system diagram">
+  <img src="docs/img/app-settings-confirmed.jpg" width="30%" alt="Phone app: a set-point change confirmed by the virtual device">
+</p>
+
+An Android app (APK, about 330 KB) that needs **no hardware, no internet and no permissions**. It is the same dashboard with a virtual sump built in:
+
+- **Virtual sump:** pick the **Lab model** (80 L sump, 0.5 HP pump) or the **Mine** (40 × 30 × 4 m sump, 2500 GPM pump, 133 kW). Choose a scenario (normal, heavy rain, dry run, tank full, WiFi drop, sensor fault, or your own inflow on a slider) and a speed from 1× to 1000×. Then watch the controller start and stop the pump, trip the interlocks and raise alarms. Every page works: Trends, Alarms, Settings and Reports.
+- **Sump calculator:** enter the sump size, pump GPM, motor kW and inflows. You get volume, fill and pump-down times, pump starts, daily pumping hours, energy (kWh) and cost (₹), the **DGMS check** (does the sump hold 2–3 h of peak storm inflow?) and how long until overflow in a storm. **"Simulate this sump"** then runs your numbers in the virtual sump.
+- **Same brain as the real device:** the app's simulator is a TypeScript copy of `simulator/`. `python tools/crosscheck.py` runs both on every scenario and checks they produce the same events at the same times. They do: 97 events across 6 scenarios.
+
+**Install:** copy `SmartSump-Virtual.apk` to the phone (WhatsApp, Drive, USB), tap it, and allow "Install unknown apps" when Android asks. Android 8.0 or newer.
+
+**Build it yourself:**
+```powershell
+cd D:\sump\dashboard
+npm run build:apk                # packs the dashboard + simulator into android\app\src\main\assets\index.html
+cd ..\android
+.\gradlew assembleRelease        # needs the Android SDK (ANDROID_HOME) and a JDK
+# result: android\app\build\outputs\apk\release\app-release.apk
+```
+
 ## 5. Progress
 
 **Phase 1: simulator + MQTT + dashboard (no hardware needed)**
@@ -172,6 +198,9 @@ Screenshots from the simulator's `heavy_rain` scenario. Operators sign in with t
 - [x] Dashboard: live overview (animated SVG), trends, alarms, settings, reports (tested in the browser against the simulator)
 - [x] Mosquitto config + `docker-compose.yml` for broker + logger + dashboard ⚠️ *written, not yet run: Docker isn't installed on the dev laptop yet*
 - [ ] Telegram alert tested with a real bot token
+
+**Extra: phone app.**
+- [x] Virtual-sump Android APK with a sump calculator, cross-checked against the Python simulator
 
 **Phase 2: ESP32 firmware.** PlatformIO, the same `control.cpp` state machine, MQTT, NVS set-points.
 
@@ -274,5 +303,6 @@ python simulator\sim.py --scenario heavy_rain --no-mqtt --speed 20
 17. **"Sent" is not "done".** After every command the dashboard waits for the device to confirm it. The change has to show up in telemetry or `config/state`. Otherwise it shows the device's `CMD_REJECTED` reason, or "no answer in 10 s".
 18. **Charts follow a few rules.** Each measured quantity has one colour everywhere (sump blue, tank orange, flow green-blue, current violet), and the palette was checked for colour-blind safety in light and dark mode. Red, amber and green are kept for status, always with an icon and a word. There are no two-axis charts: flow and current get one chart each.
 19. **Charts load only when opened.** The charting library is about half the code, so Trends and Reports load on demand. The Overview opens quickly on a phone over weak mine WiFi.
-20. **React dashboard instead of Node-RED.** The proposal deck mentioned Node-RED. A React dashboard is easier to make mobile-first and to show to the panel.
-21. **Project lives on D:\sump.** The C: drive was full.
+20. **The phone app reuses the dashboard instead of being a second app.** A build flag swaps the MQTT connection for a simulator running inside the page. The whole page is packed into one HTML file inside a minimal Android WebView, so there is one UI to maintain, and the app works offline with no permissions. The TypeScript copy of the control logic is kept honest by `tools/crosscheck.py`.
+21. **React dashboard instead of Node-RED.** The proposal deck mentioned Node-RED. A React dashboard is easier to make mobile-first and to show to the panel.
+22. **Project lives on D:\sump.** The C: drive was full.

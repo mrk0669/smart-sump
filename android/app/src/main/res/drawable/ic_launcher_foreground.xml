@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- App icon: a sump (open pit outline) with water in it. Same artwork as the
+     dashboard's favicon (32x32), scaled into the 66dp safe zone of the 108dp
+     adaptive icon. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <group
+        android:translateX="21"
+        android:translateY="21"
+        android:scaleX="2.0625"
+        android:scaleY="2.0625">
+        <path
+            android:fillColor="#86B6EF"
+            android:pathData="M11.4,17h9.2l-0.9,7h-7.4z" />
+        <path
+            android:fillColor="#00000000"
+            android:strokeColor="#FFFFFF"
+            android:strokeWidth="2.4"
+            android:strokeLineJoin="round"
+            android:pathData="M6,9h4l2,15h8l2,-15h4" />
+    </group>
+</vector>

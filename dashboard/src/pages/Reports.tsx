@@ -17,11 +17,11 @@ interface Day {
 }
 
 export function Reports() {
-  const { device } = useSump();
+  const { device, virtual } = useSump();
   const [days, setDays] = useState<"7" | "30">("7");
   const id = device ? { site: device.site, device: device.device } : null;
   const { data, error } = useApi<{ tariff_rs_per_kwh: number; days: Day[] }>(
-    id ? `/report/daily?${query({ ...id, days })}` : null, [], 60_000);
+    id ? `/report/daily?${query({ ...id, days })}` : null, [], virtual ? 3_000 : 60_000);
 
   const rows = data?.days ?? [];
   const total = rows.reduce(
@@ -38,11 +38,11 @@ export function Reports() {
   return (
     <>
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h1 className="text-xl font-bold">Reports{device ? ` · ${device.key}` : ""}</h1>
+        <h1 className="text-xl font-bold">Reports{device && !virtual ? ` · ${device.key}` : ""}</h1>
         <div className="no-print flex flex-wrap gap-2">
           <Segmented<"7" | "30"> label="Days" value={days} onChange={setDays}
             options={[{ value: "7", label: "7 days" }, { value: "30", label: "30 days" }]} />
-          <Button onClick={() => print()}><Printer className="size-4" /> Print</Button>
+          {!virtual && <Button onClick={() => print()}><Printer className="size-4" /> Print</Button>}
         </div>
       </div>
 
@@ -106,12 +106,12 @@ export function Reports() {
         {data && (
           <p className="mt-3 text-sm text-muted">
             Energy = V × I × power factor × run time (× √3 for a three-phase pump), from the measured current.
-            Tariff ₹{data.tariff_rs_per_kwh}/kWh, from <code>config/site.yaml</code>.
+            Tariff ₹{data.tariff_rs_per_kwh}/kWh{virtual ? "" : <>, from <code>config/site.yaml</code></>}.
           </p>
         )}
       </Card>
 
-      {id && (
+      {id && !virtual && (
         <Card title="Download (CSV, opens in Excel)" className="no-print">
           <div className="flex flex-wrap gap-2">
             <a className={buttonClass()} href={csvUrl("report", { ...id, days })}><Download className="size-4" /> Daily report</a>

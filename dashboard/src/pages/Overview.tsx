@@ -2,6 +2,7 @@ import { Play, RotateCcw, Square } from "lucide-react";
 import { useState } from "react";
 import type { ReactNode } from "react";
 import { SystemDiagram } from "../components/SystemDiagram";
+import { SimPanel } from "../virtual/SimPanel";
 import { Badge, Banner, Button, Card, ConfirmDialog, Segmented, SeverityIcon } from "../components/ui";
 import { alarmInfo, STATE_LABEL, type Severity } from "../lib/alarms";
 import { useCommand } from "../lib/command";
@@ -16,7 +17,7 @@ type Confirm =
   | null;
 
 export function Overview() {
-  const { device } = useSump();
+  const { device, virtual } = useSump();
   const cmd = useCommand();
   const [confirm, setConfirm] = useState<Confirm>(null);
   const t = device?.telemetry;
@@ -39,6 +40,8 @@ export function Overview() {
 
   return (
     <>
+      {virtual && <SimPanel />}
+
       {/* active alarms first: the most important thing on the screen */}
       {t && t.alarms.length > 0 && (
         <div className="space-y-2">

@@ -11,7 +11,13 @@ function apply(theme: Theme) {
 /** Light / dark / follow-the-phone. Bright light outdoors at the pit usually
  *  wants light mode; the night shift usually wants dark. */
 export function useTheme(): [Theme, (t: Theme) => void] {
-  const [theme, setTheme] = useState<Theme>(() => (localStorage.getItem(KEY) as Theme) || "system");
+  const [theme, setTheme] = useState<Theme>(() => {
+    try {
+      return (localStorage.getItem(KEY) as Theme) || "system";
+    } catch {
+      return "system";   // storage blocked: just follow the phone
+    }
+  });
 
   useEffect(() => {
     apply(theme);

@@ -1,14 +1,21 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
+import { viteSingleFile } from "vite-plugin-singlefile";
 
-// During development (`npm run dev`) the dashboard runs on :5173 and forwards
-// /api calls to the logger on :8000, so the browser sees one origin.
-// In production the logger (or nginx in Docker) serves both.
-export default defineConfig({
-  plugins: [react(), tailwindcss()],
+// Two builds from the same code:
+//  - normal (`npm run build`): the live dashboard, served by the logger/nginx.
+//    During development (`npm run dev`) /api is forwarded to the logger on :8000.
+//  - apk (`npm run build:apk`): the phone app with the virtual sump built in
+//    (.env.apk sets VITE_VIRTUAL=1). Everything is packed into ONE index.html
+//    inside the Android project, because the app opens it straight from the
+//    APK's files with no web server.
+export default defineConfig(({ mode }) => ({
+  plugins: [react(), tailwindcss(), ...(mode === "apk" ? [viteSingleFile()] : [])],
+  base: mode === "apk" ? "./" : "/",
+  build: mode === "apk" ? { outDir: "../android/app/src/main/assets", emptyOutDir: true } : undefined,
   server: {
-    port: 5173,
+    port: mode === "apk" ? 5174 : 5173,
     proxy: { "/api": "http://localhost:8000" },
   },
-});
+}));
