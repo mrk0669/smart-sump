@@ -28,6 +28,7 @@ geometry:
   tank_sensor_offset_cm: 25
   ultrasonic_min_cm: 20   # readings outside this range are rejected as junk
   ultrasonic_max_cm: 450
+  ultrasonic_agree_cm: 2  # at least 3 of the 5 pings must agree within this, or the burst is rejected
 
 # Control set-points. These can also be changed live from the dashboard
 # (cmd/config); the device validates them before use.
@@ -70,6 +71,7 @@ simulator:
   pump_intake_pct: 5          # below this level the pump sucks air
   base_inflow_lpm: 3          # normal seepage into the sump
   tank_outlet_lpm_at_full: 40 # gravity outflow to the filling point when the tank is full
+  tank_outlet_pct: 25         # outlet pipe height; water below it stays for settling
   sump_high_float_pct: 95
   sump_low_float_pct: 10
   tank_high_float_pct: 95

@@ -70,9 +70,15 @@ def test_distance_to_pct_matches_brief_formula():
 
 
 def test_median_filter_ignores_wild_echoes_and_needs_three_good_pings():
-    assert filter_distance([40.0, 40.2, 400.0, 39.9, 40.1], 20, 450) == pytest.approx(40.1)
+    assert filter_distance([40.0, 40.2, 400.0, 39.9, 40.1], 20, 450) == pytest.approx(40.05)
     assert filter_distance([40.0, None, 0.0, 5.0, 40.2], 20, 450) is None   # only 2 in range
     assert filter_distance([40.0, None, 41.0, 600.0, 40.5], 20, 450) == pytest.approx(40.5)
+
+
+def test_filter_rejects_burst_when_pings_disagree():
+    # Found by the simulator: 1 missing + 2 wild pings. The plain median of the
+    # 4 left would be (29.7 + 200) / 2 = 114.9 cm, i.e. "tank empty". Reject it.
+    assert filter_distance([29.6, 200.0, 300.0, None, 29.7], 20, 450) is None
 
 
 # --- rule 4 / 5: start and stop --------------------------------------------
@@ -333,6 +339,24 @@ def test_time_to_overflow_and_overflow_risk_alarm():
     assert rig.c.tto_min is None and Alarm.OVERFLOW_RISK not in rig.c.alarms
 
 
+def test_overflow_alarm_holds_while_sump_is_spilling():
+    # Found by the simulator: at 100 % the level can't rise any more, the trend
+    # goes flat, and the alarm used to flicker on and off.
+    sp = Setpoints(sump_start_pct=100, overflow_warn_min=3)
+    rig = Rig(sp).run(300, level=lambda t: 99.5 + 0.3 * math.sin(t))
+    assert Alarm.OVERFLOW_RISK in rig.c.alarms and rig.c.tto_min == 0.0
+    assert rig.count(EventType.ALARM, Alarm.OVERFLOW_RISK) == 1
+    assert rig.count(EventType.ALARM_CLEAR, Alarm.OVERFLOW_RISK) == 0
+    rig.run(120, level=60.0)                    # drained well below: clears
+    assert Alarm.OVERFLOW_RISK not in rig.c.alarms
+
+
+def test_telemetry_reports_unknown_level_during_sensor_fault():
+    rig = Rig().run(5, level=60.0)
+    rig.run(11, sump_pct=None)
+    assert rig.c.snapshot()["sump_pct"] is None   # not the stale 60 %
+
+
 def test_inflow_exceeds_pump_when_level_rises_while_pumping():
     rig = Rig().start_pumping()
     t0 = rig.t
@@ -340,6 +364,18 @@ def test_inflow_exceeds_pump_when_level_rises_while_pumping():
     assert Alarm.INFLOW_EXCEEDS_PUMP in rig.c.alarms
     rig.run(35, level=15.0)                     # pump stops at the stop set-point
     assert Alarm.INFLOW_EXCEEDS_PUMP not in rig.c.alarms
+
+
+def test_inflow_alarm_does_not_flicker_while_draining_past_full():
+    # Found by the simulator: draining from 100 % with noise around 98 % made
+    # the alarm toggle every second.
+    rig = Rig().start_pumping()
+    rig.run(90, level=100.0)
+    assert Alarm.INFLOW_EXCEEDS_PUMP in rig.c.alarms
+    t0 = rig.t
+    rig.run(120, level=lambda t: 98.0 - (t - t0) / 60.0 + 0.4 * math.sin(t * 5))
+    assert rig.count(EventType.ALARM, Alarm.INFLOW_EXCEEDS_PUMP) == 1
+    assert rig.count(EventType.ALARM_CLEAR, Alarm.INFLOW_EXCEEDS_PUMP) == 0
 
 
 # --- events ----------------------------------------------------------------

@@ -89,6 +89,9 @@ TREND_SAMPLE_S = 2.0          # keep one level point every 2 s for the trend fit
 MIN_TREND_SPAN_S = 60.0       # need at least 1 min of points before trusting a slope
 RISING_EPS_PCT_PER_MIN = 0.1  # slower than this counts as "flat" (sensor noise)
 OVERFLOW_CLEAR_FACTOR = 1.2   # clear OVERFLOW_RISK only when tto > 1.2 x warn (hysteresis)
+OVERFLOWING_PCT = 98.0        # at/above this the sump IS spilling: the level can't rise
+                              # any further, so the trend goes flat and can't be trusted
+OVERFLOWING_CLEAR_PCT = 95.0  # ...and it must drop below this before the alarm can clear
 MIN_BAND_PCT = 20.0           # start set-point must be at least this far above stop
 
 
@@ -185,18 +188,27 @@ def validate_setpoints(current: Setpoints, patch: dict) -> tuple[Optional[Setpoi
 # --- Sensor helpers (also mirrored in the firmware) ------------------------
 
 def filter_distance(readings: list[Optional[float]], min_cm: float, max_cm: float,
-                    min_valid: int = 3) -> Optional[float]:
-    """Median of a burst of ultrasonic pings (the firmware takes 5).
+                    agree_cm: float = 2.0, min_valid: int = 3) -> Optional[float]:
+    """Filtered distance from a burst of ultrasonic pings (the firmware takes 5).
 
     Why the median and not the average: in a sump the JSN-SR04T sometimes
     returns a wild echo (off the wall, a ripple) or nothing at all. An average
     gets dragged by one bad ping; the median simply ignores it.
-    Returns None if fewer than `min_valid` pings were in range.
+
+    Why the agreement check too: with one ping missing and two wild ones, the
+    median of the remaining four is the average of a good and a bad value,
+    which is garbage. (The simulator caught this: one such reading released
+    the tank-full lockout.) So at least `min_valid` pings must lie within
+    `agree_cm` of the median, or the burst counts as "no valid reading".
     """
     valid = [r for r in readings if r is not None and min_cm <= r <= max_cm]
     if len(valid) < min_valid:
         return None
-    return median(valid)
+    m = median(valid)
+    close = [r for r in valid if abs(r - m) <= agree_cm]
+    if len(close) < min_valid:
+        return None
+    return median(close)
 
 
 def distance_to_pct(distance_cm: float, depth_cm: float, offset_cm: float) -> float:
@@ -330,29 +342,38 @@ class Controller:
         self.rate_pct_per_min = _slope_pct_per_min(self.trend) if span >= MIN_TREND_SPAN_S else None
         rate = self.rate_pct_per_min
 
-        if rate is not None and rate > RISING_EPS_PCT_PER_MIN and self.sump_pct is not None:
-            self.tto_min = (100.0 - self.sump_pct) / rate
+        level = self.sump_pct
+        overflowing = level is not None and level >= OVERFLOWING_PCT
+        if overflowing:
+            self.tto_min = 0.0
+        elif rate is not None and rate > RISING_EPS_PCT_PER_MIN and level is not None:
+            self.tto_min = (100.0 - level) / rate
         else:
             self.tto_min = None
 
         # OVERFLOW_RISK. With too little data (rate is None, e.g. just after a
         # pump switch) we leave the alarm as it is rather than guess.
-        if rate is not None:
-            if self.tto_min is not None and self.tto_min < sp.overflow_warn_min:
-                self._raise(now, Alarm.OVERFLOW_RISK,
-                            f"sump {self.sump_pct:.1f}% rising {rate:.2f} %/min: "
-                            f"overflow in {self.tto_min:.1f} min (< {sp.overflow_warn_min:g})")
-            elif self.tto_min is None or self.tto_min >= sp.overflow_warn_min * OVERFLOW_CLEAR_FACTOR:
-                self._clear(now, Alarm.OVERFLOW_RISK, "level no longer heading for overflow")
+        heading_over = self.tto_min is not None and self.tto_min < sp.overflow_warn_min
+        if overflowing:
+            self._raise(now, Alarm.OVERFLOW_RISK, f"sump at {level:.1f}%: overflowing")
+        elif heading_over and rate is not None:
+            self._raise(now, Alarm.OVERFLOW_RISK,
+                        f"sump {level:.1f}% rising {rate:.2f} %/min: "
+                        f"overflow in {self.tto_min:.1f} min (< {sp.overflow_warn_min:g})")
+        elif (rate is not None and level < OVERFLOWING_CLEAR_PCT
+              and (self.tto_min is None or self.tto_min >= sp.overflow_warn_min * OVERFLOW_CLEAR_FACTOR)):
+            self._clear(now, Alarm.OVERFLOW_RISK, "level no longer heading for overflow")
 
         # INFLOW_EXCEEDS_PUMP. The trend restarts at every pump switch, so if
-        # the pump is ON and the trend still rises, the pump is losing.
-        if self.pump_on and rate is not None and rate > RISING_EPS_PCT_PER_MIN:
-            self._raise(now, Alarm.INFLOW_EXCEEDS_PUMP,
-                        f"level still rising {rate:.2f} %/min with the pump ON")
-        elif not self.pump_on or (rate is not None and rate <= 0):
-            self._clear(now, Alarm.INFLOW_EXCEEDS_PUMP,
-                        "pump stopped" if not self.pump_on else "level now falling")
+        # the pump is ON and the trend still rises (or the sump is spilling
+        # over), the pump is losing.
+        if self.pump_on and rate is not None and (rate > RISING_EPS_PCT_PER_MIN or overflowing):
+            why = "sump overflowing" if overflowing else f"level still rising {rate:.2f} %/min"
+            self._raise(now, Alarm.INFLOW_EXCEEDS_PUMP, f"{why} with the pump ON")
+        elif not self.pump_on:
+            self._clear(now, Alarm.INFLOW_EXCEEDS_PUMP, "pump stopped")
+        elif rate is not None and rate < -RISING_EPS_PCT_PER_MIN and level < OVERFLOWING_CLEAR_PCT:
+            self._clear(now, Alarm.INFLOW_EXCEEDS_PUMP, "level now falling")
 
     def _decide(self, now: float, inp: Inputs) -> tuple[bool, str, str]:
         """Apply the rules in priority order. Returns (pump_on, state, reason)."""
@@ -515,8 +536,10 @@ class Controller:
         def r(x, nd=1):
             return None if x is None else round(x, nd)
         return {
-            "sump_pct": r(self.sump_pct),
-            "tank_pct": r(self.tank_pct),
+            # During a sensor fault the last value is stale: report "unknown"
+            # (null) rather than show an old number as if it were live.
+            "sump_pct": None if self.sump_fault else r(self.sump_pct),
+            "tank_pct": None if self.tank_fault else r(self.tank_pct),
             "pump_on": self.pump_on,
             "rate_pct_per_min": r(self.rate_pct_per_min, 2),
             "tto_min": r(self.tto_min),

@@ -143,8 +143,8 @@ smart-sump/
 
 **Phase 1: simulator + MQTT + dashboard (no hardware needed)**
 - [x] Git repo, project description, site config
-- [x] Control logic (`simulator/control.py`) with pytest for every rule (29 tests passing)
-- [ ] Water-balance physics + scenarios + offline simulator run
+- [x] Control logic (`simulator/control.py`) with pytest for every rule (33 tests passing)
+- [x] Water-balance physics + 6 scenarios + offline simulator run
 - [ ] Simulator publishes over MQTT and obeys dashboard commands
 - [ ] Mosquitto broker (WebSocket listener + password auth)
 - [ ] Logger: SQLite history, REST API, CSV export, Telegram alerts
@@ -173,14 +173,23 @@ pip install -r simulator\requirements.txt
 ```powershell
 python -m pytest
 ```
-You should see every test pass, ending in a line like `29 passed`.
+You should see every test pass, ending in a line like `33 passed`.
 
-### Run the simulator (offline, no broker needed yet) *(in progress)*
+### Run the simulator (offline, no broker needed yet)
 ```powershell
-python simulator\sim.py --scenario normal --no-mqtt --speed 0 --duration 3600
+python simulator\sim.py --scenario normal --no-mqtt --speed 0 --duration 2400
 python simulator\sim.py --scenario heavy_rain --no-mqtt --speed 20
 ```
-`--speed 20` runs 20× faster than real time, and `--speed 0` runs as fast as possible. The simulator prints every event (pump start/stop, alarms) and a status line every 30 simulated seconds, then a summary at the end.
+`--speed 20` runs 20× faster than real time, and `--speed 0` runs as fast as possible. `--duration` is in simulated seconds, and Ctrl+C stops a run. The simulator prints every event (pump start/stop, alarms) and a status line every 30 simulated seconds, then a summary.
+
+| Scenario | What happens in the "pit" | What the controller should do |
+|---|---|---|
+| `normal` | Steady seepage (3 L/min) | Cycles: start at 80 %, stop at 20 %, no alarms |
+| `heavy_rain` | Inflow ramps to 36 L/min, more than the 30 L/min pump | `INFLOW_EXCEEDS_PUMP`, then `OVERFLOW_RISK`; pump runs flat out |
+| `dry_run` | Suction strainer choked for 15 min | `DRY_RUN` after 10 s, auto-retry every 10 min, recovers once cleared |
+| `tank_full` | Tank outlet closed for 20 min | `TANK_FULL` lockout until the tank drains 10 % below the limit |
+| `wifi_drop` | WiFi lost for 60 s while the pump is due to start | Pump still starts on time; queued events are sent on reconnect |
+| `sensor_fault` | Sump ultrasonic dead for 12 min | `SENSOR_FAULT`, `FAULT_SENSOR` state, floats take over |
 
 *(Node.js, Docker Desktop and PlatformIO setup will be added here as those parts land.)*
 
@@ -194,5 +203,7 @@ python simulator\sim.py --scenario heavy_rain --no-mqtt --speed 20
 6. **Only `DRY_RUN` can be reset by hand.** The other alarms clear themselves when the condition goes away.
 7. **The trend restarts when the pump switches.** The rise rate before and after a pump start belong to two different situations, so mixing them would make the fit meaningless. Until 1 min of new data exists, `tto_min` is `null`, and an active overflow alarm is **kept**, because "unknown" is not "safe".
 8. **Lab numbers are in `config/site.yaml`.** The 80 L sump, 100 L tank and 30 L/min pump are starting guesses. Replace them with measured values. `overflow_warn_min` is 3 min for the lab instead of 30 min for the mine, because small tanks fill about 100× faster.
-9. **React dashboard instead of Node-RED.** The proposal deck mentioned Node-RED. A React dashboard is easier to make mobile-first and to show to the panel.
-10. **Project lives on D:.** The C: drive was full.
+9. **Ultrasonic pings must agree.** Each burst of 5 pings is median-filtered, *and* at least 3 pings must lie within 2 cm of each other. The simulator found that a burst with one missing ping and two wild echoes produced a bogus "tank empty" reading, which released the tank-full lockout.
+10. **A sump at ≥ 98 % counts as overflowing.** A spilling sump can't rise any further, so its trend goes flat. The overflow alarm is held on until the level drops below 95 %. Without this the alarm flickered (another simulator find).
+11. **React dashboard instead of Node-RED.** The proposal deck mentioned Node-RED. A React dashboard is easier to make mobile-first and to show to the panel.
+12. **Project lives on D:.** The C: drive was full.
