@@ -59,7 +59,7 @@ const dateKey = (ts: number) => {
 
 export class VirtualDevice {
   readonly profile: Profile;
-  readonly scenario: Scenario;
+  scenario: Scenario;
   readonly epoch0: number;    // virtual clock starts at "now"
   t = 0;                      // simulated seconds since start
   plant: Plant;
@@ -105,6 +105,12 @@ export class VirtualDevice {
   private conditions(): Conditions {
     const base = this.inflowOverride ?? this.profile.baseInflowLpm;
     return this.scenario.conditions(this.t / this.profile.timeScale, base, this.profile.stormFactor ?? 12);
+  }
+
+  /** Change the scenario without restarting (used when the user takes over
+   *  the rain in the app: switches to "custom" and keeps the water where it is). */
+  switchScenario(name: string) {
+    this.scenario = scenarioByName(name);
   }
 
   /** Queue a dashboard command; applied at the start of the next cycle,

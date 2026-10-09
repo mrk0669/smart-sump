@@ -93,6 +93,62 @@ body {
   .water-flow, .impeller-spin { animation: none; }
 }
 
+/* --- "Touch the pit" (phone app) --- */
+:root {
+  --sky-top: #cfe3fb;
+  --sky-bottom: #f4f8fc;
+  --cloud-light: #e2e8f0;
+  --cloud-dark: #64748b;
+  --rain: #2a78d6;
+}
+.dark {
+  --sky-top: #0b1324;
+  --sky-bottom: #1a2333;
+  --cloud-light: #94a3b8;
+  --cloud-dark: #334155;
+  --rain: #86b6ef;
+}
+@keyframes rain-fall {
+  from { transform: translateY(0); }
+  to { transform: translateY(var(--fall)); }
+}
+.raindrop { animation: rain-fall var(--dur) linear infinite; animation-delay: var(--delay); }
+@keyframes ripple {
+  from { transform: scale(0.2); opacity: 0.9; }
+  to { transform: scale(1.6); opacity: 0; }
+}
+.ripple { transform-box: fill-box; transform-origin: center; animation: ripple 1.1s ease-out infinite; animation-delay: var(--delay); }
+@keyframes wave {
+  from { transform: translateX(0); }
+  to { transform: translateX(-16px); }
+}
+.wave { animation: wave 1.6s linear infinite; }
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-1.5px); }
+  75% { transform: translateX(1.5px); }
+}
+.shake { animation: shake 0.25s linear infinite; }
+@keyframes rise {
+  from { transform: translateY(0); opacity: 0.9; }
+  to { transform: translateY(-14px); opacity: 0; }
+}
+.bubble { animation: rise 1.2s ease-out infinite; animation-delay: var(--delay); }
+@keyframes splash {
+  from { transform: translate(0, 0); opacity: 1; }
+  to { transform: translate(var(--dx), -12px); opacity: 0; }
+}
+.splash { animation: splash 0.8s ease-out infinite; animation-delay: var(--delay); }
+.water-level { transition: transform 0.35s linear; }
+@keyframes toast-in {
+  from { transform: translateY(-6px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+.toast-in { animation: toast-in 0.2s ease-out; }
+@media (prefers-reduced-motion: reduce) {
+  .raindrop, .ripple, .wave, .shake, .bubble, .splash, .toast-in { animation: none; }
+}
+
 /* --- printing (Reports page) --- */
 @media print {
   .no-print { display: none !important; }

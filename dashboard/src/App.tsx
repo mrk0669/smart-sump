@@ -1,4 +1,4 @@
-import { Bell, Calculator as CalcIcon, ChartLine, FileText, Gauge, LogOut, Monitor, Moon, SlidersHorizontal, Sun } from "lucide-react";
+import { Bell, Calculator as CalcIcon, ChartLine, CloudRain, FileText, Gauge, LogOut, Monitor, Moon, SlidersHorizontal, Sun } from "lucide-react";
 import { lazy, Suspense, useCallback, useEffect, useState } from "react";
 import { LoginScreen } from "./components/Login";
 import { Banner } from "./components/ui";
@@ -9,6 +9,7 @@ import { Alarms } from "./pages/Alarms";
 import { Calculator } from "./pages/Calculator";
 import { Overview } from "./pages/Overview";
 import { Settings } from "./pages/Settings";
+import { PitPage } from "./virtual/PitPage";
 import { useSimOptional, VirtualProvider } from "./virtual/VirtualProvider";
 
 // The chart pages pull in the charting library (~half the code), so they load
@@ -23,7 +24,9 @@ const VIRTUAL = import.meta.env.VITE_VIRTUAL === "1";
 const LOGIN_KEY = "smartsump.login";
 const STALE_MS = 10_000; // "last update" turns red after 10 s without telemetry
 
-const PAGES = [
+const ALL_PAGES = [
+  // Phone app only: the interactive pit is the home screen.
+  { id: "pit", label: "Pit", short: "Pit", Icon: CloudRain, Page: PitPage, virtualOnly: true },
   { id: "overview", label: "Overview", short: "Overview", Icon: Gauge, Page: Overview },
   { id: "trends", label: "Trends", short: "Trends", Icon: ChartLine, Page: Trends },
   { id: "alarms", label: "Alarms", short: "Alarms", Icon: Bell, Page: Alarms },
@@ -31,7 +34,9 @@ const PAGES = [
   { id: "reports", label: "Reports", short: "Reports", Icon: FileText, Page: Reports },
   { id: "calculator", label: "Calculator", short: "Calc", Icon: CalcIcon, Page: Calculator },
 ] as const;
-type PageId = (typeof PAGES)[number]["id"];
+const PAGES = ALL_PAGES.filter((p) => VIRTUAL || !("virtualOnly" in p));
+const HOME = VIRTUAL ? "pit" : "overview";
+type PageId = (typeof ALL_PAGES)[number]["id"];
 
 function readLogin(): Login | null {
   try {
@@ -96,7 +101,7 @@ function LiveApp() {
 function usePage(): [PageId, (p: PageId) => void] {
   const read = () => {
     const h = location.hash.slice(1);
-    return (PAGES.some((p) => p.id === h) ? h : "overview") as PageId;
+    return (PAGES.some((p) => p.id === h) ? h : HOME) as PageId;
   };
   const [page, setPage] = useState<PageId>(read);
   useEffect(() => {
@@ -206,7 +211,8 @@ function Shell({ onLogout }: { onLogout?: () => void }) {
       </main>
 
       {/* bottom bar (phones): big thumb-sized targets */}
-      <nav className="no-print fixed inset-x-0 bottom-0 z-10 grid grid-cols-6 border-t border-line bg-page pb-[env(safe-area-inset-bottom)] md:hidden"
+      <nav className="no-print fixed inset-x-0 bottom-0 z-10 grid border-t border-line bg-page pb-[env(safe-area-inset-bottom)] md:hidden"
+        style={{ gridTemplateColumns: `repeat(${PAGES.length}, minmax(0, 1fr))` }}
         aria-label="Pages">
         {PAGES.map(({ id, short, Icon }) => (
           <button key={id} onClick={() => setPage(id)} aria-current={page === id ? "page" : undefined}

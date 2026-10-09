@@ -165,12 +165,14 @@ Screenshots from the simulator's `heavy_rain` scenario. Operators sign in with t
 ### 📱 Phone app: the virtual sump
 
 <p align="center">
-  <img src="docs/img/app-virtual-sump.jpg" width="30%" alt="Phone app: the virtual sump panel (site, scenario, speed) above the live system diagram">
+  <img src="docs/img/app-pit-storm.jpg" width="30%" alt="Touch the pit: the rain cloud dragged down to a storm, the sump overflowing onto the pit floor while the pump runs flat out">
+  <img src="docs/img/app-pit-dryrun.jpg" width="30%" alt="Touch the pit in dark mode: dry-run lockout with a red locked pump and toasts explaining the trip">
   <img src="docs/img/app-settings-confirmed.jpg" width="30%" alt="Phone app: a set-point change confirmed by the virtual device">
 </p>
 
 An Android app (APK, about 330 KB) that needs **no hardware, no internet and no permissions**. It is the same dashboard with a virtual sump built in:
 
+- **Touch the pit (home screen):** an animated cross-section of an opencast pit. **Drag the rain cloud down** for a storm: raindrops, ripples, and an inflow-vs-pump bar. Watch the sump rise and spill onto the pit floor. **Tap the pump** to switch to MANUAL and start or stop it. In a dry-run lockout the pump shakes with a lock badge and you tap it to reset. A caption explains in plain words what the controller is doing and why.
 - **Virtual sump:** pick the **Lab model** (80 L sump, 0.5 HP pump) or the **Mine** (40 × 30 × 4 m sump, 2500 GPM pump, 133 kW). Choose a scenario (normal, heavy rain, dry run, tank full, WiFi drop, sensor fault, or your own inflow on a slider) and a speed from 1× to 1000×. Then watch the controller start and stop the pump, trip the interlocks and raise alarms. Every page works: Trends, Alarms, Settings and Reports.
 - **Sump calculator:** enter the sump size, pump GPM, motor kW and inflows. You get volume, fill and pump-down times, pump starts, daily pumping hours, energy (kWh) and cost (₹), the **DGMS check** (does the sump hold 2–3 h of peak storm inflow?) and how long until overflow in a storm. **"Simulate this sump"** then runs your numbers in the virtual sump.
 - **Same brain as the real device:** the app's simulator is a TypeScript copy of `simulator/`. `python tools/crosscheck.py` runs both on every scenario and checks they produce the same events at the same times. They do: 97 events across 6 scenarios.
@@ -201,6 +203,7 @@ cd ..\android
 
 **Extra: phone app.**
 - [x] Virtual-sump Android APK with a sump calculator, cross-checked against the Python simulator
+- [x] v1.1: interactive "Touch the pit" home screen (drag the rain, tap the pump)
 
 **Phase 2: ESP32 firmware.** PlatformIO, the same `control.cpp` state machine, MQTT, NVS set-points.
 
