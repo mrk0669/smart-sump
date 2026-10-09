@@ -1,0 +1,3 @@
+# Normalise line endings in the repo; shell scripts must stay LF for Docker/Linux.
+* text=auto
+*.sh text eol=lf

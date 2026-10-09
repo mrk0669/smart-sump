@@ -1,0 +1,78 @@
+# Smart Sump: site configuration (Python side: simulator, logger).
+#
+# Everything size-specific lives here, not in code, so the same software runs
+# the lab model and a real mine sump. The ESP32 firmware mirrors the
+# `setpoints` block in firmware/include/config.h (Phase 2).
+#
+# Values below are for the LAB MODEL (two ~80-100 L tanks, 0.5 HP pump).
+# They are starting guesses: replace them with measured values.
+
+site:
+  site_id: vnit-lab
+  device_id: node01
+
+mqtt:
+  host: localhost
+  port: 1883            # plain MQTT (simulator, ESP32, logger)
+  ws_port: 9001         # MQTT over WebSocket (browser dashboard)
+  base_topic: smartsump # full prefix: smartsump/<site_id>/<device_id>/
+  keepalive_s: 15       # broker publishes the "offline" Last Will ~1.5x this after a silent drop
+
+geometry:
+  sump_depth_cm: 50       # water depth from empty (0 %) to full (100 %)
+  tank_depth_cm: 50
+  # Distance from the sensor face down to the 100 % water line. The JSN-SR04T
+  # cannot see anything closer than ~20-25 cm (its "blind zone"), so mount it
+  # at least 25 cm above the highest water level.
+  sensor_offset_cm: 25
+  tank_sensor_offset_cm: 25
+  ultrasonic_min_cm: 20   # readings outside this range are rejected as junk
+  ultrasonic_max_cm: 450
+
+# Control set-points. These can also be changed live from the dashboard
+# (cmd/config); the device validates them before use.
+setpoints:
+  sump_start_pct: 80      # AUTO start at or above this level
+  sump_stop_pct: 20       # AUTO stop at or below this level (start must be >= stop + 20)
+  tank_high_pct: 90       # sedimentation tank full -> pump locked out
+  tank_clear_band_pct: 10 # ...until the tank drops this far below tank_high_pct
+  dry_run_current_a: 1.8  # pump current below this = running dry (0 disables the check)
+  dry_run_flow_lpm: 5     # delivery flow below this = dry/blocked (0 disables the check)
+  dry_run_delay_s: 10     # low current/flow must last this long before tripping
+  dry_run_retry_min: 10   # auto-retry after a dry-run trip (0 = operator reset only)
+  min_off_time_s: 120     # protects the motor from rapid restarts
+  min_on_time_s: 30
+  # Mine: 30 min. Lab tanks fill ~100x faster, so 3 min stops the normal fill
+  # cycle looking like a flood. Rule of thumb: keep it below
+  # (100 - sump_start_pct) / normal fill rate (%/min).
+  overflow_warn_min: 3
+  sensor_fault_s: 10      # no valid ultrasonic reading for this long -> float switches only
+  tto_window_s: 180       # fit the time-to-overflow trend over the last 3 min
+
+timing:
+  publish_interval_s: 2   # telemetry every 2 s
+  sample_interval_ms: 500 # control loop runs every 0.5 s
+
+energy:                   # used in Phase 3 (kWh and cost)
+  tariff_rs_per_kwh: 8.0
+  supply_voltage_v: 230   # lab: single-phase 230 V; mine: 415 V three-phase
+  phases: 1
+  power_factor: 0.8
+
+# Only the simulator reads this block: it describes the "physical" lab model
+# that sim.py pretends to be.
+simulator:
+  sump_area_m2: 0.16          # 0.16 m2 x 0.50 m = 80 L
+  tank_area_m2: 0.20          # 0.20 m2 x 0.50 m = 100 L
+  pump_rated_flow_lpm: 30     # typical 0.5 HP monoblock at low head
+  pump_run_current_a: 2.8     # 0.5 HP on 230 V, measured with water
+  pump_dry_current_a: 1.3     # current when it sucks air
+  pump_intake_pct: 5          # below this level the pump sucks air
+  base_inflow_lpm: 3          # normal seepage into the sump
+  tank_outlet_lpm_at_full: 40 # gravity outflow to the filling point when the tank is full
+  sump_high_float_pct: 95
+  sump_low_float_pct: 10
+  tank_high_float_pct: 95
+  sensor_noise_cm: 0.3        # ultrasonic jitter (1 sigma)
+  sensor_dropout_prob: 0.02   # chance a single ping returns nothing
+  sensor_glitch_prob: 0.03    # chance a single ping returns a wild echo

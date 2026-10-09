@@ -1,0 +1,28 @@
+# Secrets: copy .env.example to .env and keep .env out of git
+.env
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Logger data (SQLite database, exports)
+data/
+*.db
+*.sqlite
+*.sqlite3
+
+# Dashboard (Node)
+node_modules/
+dist/
+
+# Firmware (PlatformIO)
+.pio/
+
+# Editors / OS
+.vscode/*
+!.vscode/extensions.json
+.idea/
+Thumbs.db
+desktop.ini
