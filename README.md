@@ -138,12 +138,27 @@ smart-sump/
 │   ├── reports.py         #   daily pump hours, m³, cycles, kWh, ₹
 │   ├── alerts.py          #   Telegram (skipped quietly if no token)
 │   └── tests/
+├── dashboard/             # React + Vite + TypeScript + Tailwind, phone-first
+│   └── src/
+│       ├── components/SystemDiagram.tsx  # animated SVG: sump → pump → tank → filling point
+│       ├── lib/sump.tsx   #   MQTT over WebSocket: live state of every device
+│       ├── lib/command.ts #   send a command, then wait for the device to confirm or refuse
+│       └── pages/         #   Overview, Trends, Alarms, Settings, Reports
 ├── tools/dev_broker.py    # MQTT broker in Python, for laptops without Docker
-├── mosquitto/             # broker config + password file             (coming)
-├── dashboard/             # React + Vite + TypeScript + Tailwind       (coming)
-├── firmware/              # PlatformIO ESP32 project                   (Phase 2)
-└── docker-compose.yml     # one command starts broker, logger, dashboard (coming)
+├── mosquitto/             # broker config; password file built from .env at start-up
+├── docker-compose.yml     # one command starts broker, logger, dashboard
+└── firmware/              # PlatformIO ESP32 project                   (Phase 2)
 ```
+
+### The dashboard
+
+<p align="center">
+  <img src="docs/img/dashboard-overview.jpg" width="62%" alt="Dashboard overview on a laptop: animated system diagram with the pump running, AUTO/MANUAL control, and live tiles for sump level, tank level, pump state, flow, current and time to overflow">
+  <img src="docs/img/dashboard-phone.jpg" width="17%" alt="Phone view during heavy rain: an 'Inflow exceeds pump' alarm banner above the system diagram">
+  <img src="docs/img/dashboard-phone-tiles.jpg" width="17%" alt="Phone view: large readouts, with the time-to-overflow tile turned amber at 4.7 minutes">
+</p>
+
+Screenshots from the simulator's `heavy_rain` scenario. Operators sign in with the site's MQTT login. **Overview** shows the live system and big readouts, with AUTO/MANUAL and Start/Stop; every action asks for confirmation and waits for the device to confirm it. **Trends** has level, flow and current over 1 h / 24 h / 7 d, with the set-points drawn in and pump-running periods shaded. **Alarms** lists active alarms and the history, with acknowledge and dry-run reset. **Settings** edits the set-points, checked here and again on the device. **Reports** shows daily pump hours, m³, starts, kWh and ₹, with CSV download and print. Light, dark and phone layouts are all supported.
 
 ## 5. Progress
 
@@ -153,10 +168,10 @@ smart-sump/
 - [x] Water-balance physics + 6 scenarios + offline simulator run
 - [x] Simulator publishes over MQTT and obeys dashboard commands (Last Will, event queue during WiFi loss)
 - [x] Dev broker for laptops without Docker (`tools/dev_broker.py`: same ports, same login)
-- [ ] Mosquitto broker in Docker (WebSocket listener + password auth)
 - [x] Logger: SQLite history, REST API, CSV export, daily report, Telegram alerts (9 tests)
-- [ ] Dashboard: live overview (animated SVG), trends, alarms, settings, reports
-- [ ] `docker compose up` brings up broker + logger + dashboard
+- [x] Dashboard: live overview (animated SVG), trends, alarms, settings, reports (tested in the browser against the simulator)
+- [x] Mosquitto config + `docker-compose.yml` for broker + logger + dashboard ⚠️ *written, not yet run: Docker isn't installed on the dev laptop yet*
+- [ ] Telegram alert tested with a real bot token
 
 **Phase 2: ESP32 firmware.** PlatformIO, the same `control.cpp` state machine, MQTT, NVS set-points.
 
@@ -183,16 +198,42 @@ python -m pytest
 ```
 You should see every test pass, ending in a line like `42 passed`.
 
+### Node.js (dashboard)
+Install the **LTS** version from [nodejs.org](https://nodejs.org/), then build the dashboard once:
+
+```powershell
+cd D:\sump\dashboard
+npm install          # downloads React, MQTT.js, Recharts... into node_modules (~170 MB)
+npm run build        # makes dashboard\dist, which the logger serves
+```
+
+> If C: is full, npm fails with `ENOSPC` even though the project is on D:. Move npm's cache first: `npm config set cache D:\dev\npm-cache`.
+
 ### Run the whole system without Docker
 Open three terminals in `D:\sump` (each with `.venv\Scripts\activate`):
 
 ```powershell
-python tools\dev_broker.py                            # 1. MQTT broker (ports 1883 + 9001)
-python -m logger                                      # 2. logger + API on http://localhost:8000
+python tools\dev_broker.py                                 # 1. MQTT broker (ports 1883 + 9001)
+python -m logger                                           # 2. logger + dashboard on http://localhost:8000
 python simulator\sim.py --scenario heavy_rain --speed 10   # 3. the "pit"
 ```
 
-Then open **http://localhost:8000/docs** to try the API: history, events, the daily report and CSV downloads. To get alarms on your phone, put a Telegram bot token and chat id in `.env`.
+Open **http://localhost:8000** and sign in with the MQTT login from `.env` (user `smartsump`). Within a minute you'll see the pump start at 80 %, then the inflow and overflow alarms as the storm beats the pump. The API docs are at http://localhost:8000/docs. To get alarms on your phone, put a Telegram bot token and chat id in `.env`.
+
+**On your phone** (same WiFi as the PC): start the broker with `python tools\dev_broker.py --lan` and the logger with `python -m logger --host 0.0.0.0`, find the PC's address with `ipconfig` (e.g. `192.168.1.20`), and open `http://192.168.1.20:8000` on the phone. Allow Python through Windows Firewall when asked (private networks only).
+
+**Changing the dashboard code?** Run `npm run dev` in `dashboard\` instead and open http://localhost:5173. It reloads as you edit and forwards `/api` to the logger.
+
+### Run with Docker (the brief's one-command setup)
+1. Free at least 15 GB on C:, then install [Docker Desktop for Windows](https://www.docker.com/products/docker-desktop/) and accept the WSL 2 option during setup. Restart when asked.
+2. In `D:\sump`: `copy .env.example .env` and set your own `MQTT_PASSWORD`.
+3. Start everything:
+   ```powershell
+   docker compose up --build
+   ```
+4. Open **http://localhost:8080**, and run the simulator from your venv as before: `python simulator\sim.py --scenario heavy_rain`.
+
+Stop with Ctrl+C. Data and retained messages survive restarts in Docker volumes. *(Not tested yet on this laptop: see the progress list above.)*
 
 ### Run the simulator on its own (no broker needed)
 ```powershell
@@ -210,7 +251,7 @@ python simulator\sim.py --scenario heavy_rain --no-mqtt --speed 20
 | `wifi_drop` | WiFi lost for 60 s while the pump is due to start | Pump still starts on time; queued events are sent on reconnect |
 | `sensor_fault` | Sump ultrasonic dead for 12 min | `SENSOR_FAULT`, `FAULT_SENSOR` state, floats take over |
 
-*(Node.js, Docker Desktop and PlatformIO setup will be added here as those parts land.)*
+*(PlatformIO setup for the ESP32 will be added in Phase 2.)*
 
 ## 7. Design decisions
 
@@ -229,5 +270,9 @@ python simulator\sim.py --scenario heavy_rain --no-mqtt --speed 20
 13. **Events survive a WiFi drop; telemetry does not.** Events are queued (up to 100) and sent on reconnect with their original time. Old telemetry is worthless once a fresh reading exists, so it is dropped.
 14. **Acknowledging an alarm is a logbook entry, not a reset.** "Ack" is stored by the logger. Only the device can clear an alarm, and only `DRY_RUN` accepts a reset command.
 15. **The logger fixes 1970 timestamps.** An ESP32 that hasn't synced its clock yet reports dates in 1970. The logger replaces any time before 2020 with the time it received the message.
-16. **React dashboard instead of Node-RED.** The proposal deck mentioned Node-RED. A React dashboard is easier to make mobile-first and to show to the panel.
-17. **Project lives on D:\sump.** The C: drive was full.
+16. **The dashboard signs in with the MQTT login.** The password is typed by the operator, not built into the web page, so a copied page doesn't carry a working login.
+17. **"Sent" is not "done".** After every command the dashboard waits for the device to confirm it. The change has to show up in telemetry or `config/state`. Otherwise it shows the device's `CMD_REJECTED` reason, or "no answer in 10 s".
+18. **Charts follow a few rules.** Each measured quantity has one colour everywhere (sump blue, tank orange, flow green-blue, current violet), and the palette was checked for colour-blind safety in light and dark mode. Red, amber and green are kept for status, always with an icon and a word. There are no two-axis charts: flow and current get one chart each.
+19. **Charts load only when opened.** The charting library is about half the code, so Trends and Reports load on demand. The Overview opens quickly on a phone over weak mine WiFi.
+20. **React dashboard instead of Node-RED.** The proposal deck mentioned Node-RED. A React dashboard is easier to make mobile-first and to show to the panel.
+21. **Project lives on D:\sump.** The C: drive was full.

@@ -1,0 +1,59 @@
+# One command starts the server side:   docker compose up --build
+#
+#   broker     mqtt://localhost:1883 (devices)  ws://localhost:9001 (browser)
+#   logger     http://localhost:8000/docs       (REST API)
+#   dashboard  http://localhost:8080            (open this on a PC or phone)
+#
+# The simulator runs separately on your PC:
+#   python simulator/sim.py --scenario heavy_rain
+#
+# Logins and the Telegram token come from .env (copy .env.example to .env).
+
+services:
+  mosquitto:
+    image: eclipse-mosquitto:2.0.20
+    entrypoint: ["/bin/sh", "/mosquitto/config/entrypoint.sh"]
+    environment:
+      MQTT_USERNAME: ${MQTT_USERNAME:-smartsump}
+      MQTT_PASSWORD: ${MQTT_PASSWORD:-change-me}
+    ports:
+      - "1883:1883"
+      - "9001:9001"
+    volumes:
+      - ./mosquitto:/mosquitto/config:ro
+      - mosquitto-data:/mosquitto/data
+    restart: unless-stopped
+
+  logger:
+    build:
+      context: .
+      dockerfile: logger/Dockerfile
+    environment:
+      MQTT_HOST: mosquitto
+      MQTT_PORT: "1883"
+      MQTT_USERNAME: ${MQTT_USERNAME:-smartsump}
+      MQTT_PASSWORD: ${MQTT_PASSWORD:-change-me}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID:-}
+      DB_PATH: /data/smartsump.db
+      SITE_CONFIG: /app/config/site.yaml
+    volumes:
+      - logger-data:/data              # the SQLite database survives restarts
+      - ./config:/app/config:ro        # edit site.yaml without rebuilding
+    ports:
+      - "8000:8000"
+    depends_on:
+      - mosquitto
+    restart: unless-stopped
+
+  dashboard:
+    build: ./dashboard
+    ports:
+      - "8080:80"
+    depends_on:
+      - logger
+    restart: unless-stopped
+
+volumes:
+  mosquitto-data:
+  logger-data:
