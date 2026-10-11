@@ -1,0 +1,236 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Smart Sump · IoT pump control for mine dewatering</title>
+  <meta name="description" content="Smart Sump: a low-cost ESP32 controller that watches an opencast-mine sump and switches the dewatering pump by itself. TEXMiN UG Fellowship 2026, VNIT Nagpur. Try the virtual sump in your browser." />
+  <meta property="og:title" content="Smart Sump: mine dewatering without the guesswork" />
+  <meta property="og:description" content="Low-cost IoT pump control for opencast mine sumps. Try the virtual sump in your browser." />
+  <meta property="og:image" content="https://mrk0669.github.io/smart-sump/img/system-overview.jpg" />
+  <meta name="theme-color" content="#1c5cab" />
+  <link rel="icon" type="image/svg+xml" href="app/favicon.svg" />
+  <style>
+    :root {
+      color-scheme: light;
+      --page: #f9f9f7; --surface: #ffffff; --ink: #0b0b0b; --ink-2: #52514e; --muted: #898781;
+      --line: rgba(11, 11, 11, 0.1); --accent: #1c5cab; --accent-ink: #ffffff; --water: #2a78d6;
+      --good: #0ca30c; --hero: linear-gradient(180deg, #e7f0fb 0%, #f9f9f7 100%);
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        color-scheme: dark;
+        --page: #0d0d0d; --surface: #1a1a19; --ink: #ffffff; --ink-2: #c3c2b7; --muted: #898781;
+        --line: rgba(255, 255, 255, 0.1); --accent: #3987e5; --accent-ink: #0b0b0b; --water: #3987e5;
+        --hero: linear-gradient(180deg, #0f1a2b 0%, #0d0d0d 100%);
+      }
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body { margin: 0; background: var(--page); color: var(--ink); font: 17px/1.55 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+    a { color: var(--water); }
+    img { max-width: 100%; display: block; }
+    .wrap { max-width: 1080px; margin: 0 auto; padding: 0 20px; }
+    section { padding: 56px 0; border-top: 1px solid var(--line); }
+    h1 { font-size: clamp(2.4rem, 7vw, 3.6rem); line-height: 1.05; margin: 8px 0 12px; letter-spacing: -0.02em; }
+    h2 { font-size: clamp(1.6rem, 4vw, 2.1rem); line-height: 1.15; margin: 0 0 8px; letter-spacing: -0.01em; }
+    h3 { margin: 0 0 4px; font-size: 1.05rem; }
+    .kicker { color: var(--ink-2); font-weight: 600; font-size: 0.95rem; letter-spacing: 0.02em; }
+    .lead { font-size: 1.15rem; color: var(--ink-2); max-width: 60ch; }
+    .muted { color: var(--ink-2); }
+    .small { font-size: 0.88rem; color: var(--muted); }
+
+    /* hero */
+    .hero { background: var(--hero); padding: 48px 0 56px; }
+    .hero-grid { display: grid; gap: 40px; align-items: center; }
+    @media (min-width: 900px) { .hero-grid { grid-template-columns: 1.15fr 0.85fr; } }
+    .tagline { font-size: 1.35rem; font-weight: 600; margin: 0 0 12px; }
+    .buttons { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 22px; }
+    .btn { display: inline-flex; align-items: center; gap: 8px; min-height: 48px; padding: 0 20px; border-radius: 10px; font-weight: 700;
+      text-decoration: none; border: 1px solid var(--line); background: var(--surface); color: var(--ink); }
+    .btn.primary { background: var(--accent); color: var(--accent-ink); border-color: transparent; }
+    .btn:hover { filter: brightness(1.06); }
+
+    /* phone with the live app */
+    .phone { justify-self: center; width: 330px; height: 660px; border-radius: 42px; padding: 12px; background: #111; box-shadow: 0 24px 60px rgba(0,0,0,.28); }
+    .phone iframe { width: 100%; height: 100%; border: 0; border-radius: 32px; background: var(--page); }
+    .phone-wrap { display: none; text-align: center; }
+    .phone-wrap .small { margin-top: 10px; }
+    @media (min-width: 900px) { .phone-wrap { display: block; } }
+
+    /* cards & grids */
+    .grid { display: grid; gap: 16px; }
+    @media (min-width: 700px) { .g2 { grid-template-columns: 1fr 1fr; } .g3 { grid-template-columns: repeat(3, 1fr); } }
+    .card { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 20px; }
+    .stat b { display: block; font-size: 2.6rem; line-height: 1.1; letter-spacing: -0.02em; }
+    .figure { border-radius: 14px; overflow: hidden; border: 1px solid var(--line); background: #fff; }
+    ul.ticks { list-style: none; padding: 0; margin: 12px 0 0; }
+    ul.ticks li { padding-left: 30px; position: relative; margin: 8px 0; }
+    ul.ticks li::before { content: "✓"; position: absolute; left: 4px; color: var(--good); font-weight: 800; }
+    ul.next li::before { content: "→"; color: var(--muted); }
+    .steps { counter-reset: s; }
+    .steps .card { position: relative; padding-top: 52px; }
+    .steps .card::before { counter-increment: s; content: counter(s); position: absolute; top: 16px; left: 20px; width: 28px; height: 28px;
+      border-radius: 50%; background: var(--accent); color: var(--accent-ink); font-weight: 800; display: grid; place-items: center; font-size: 0.9rem; }
+    .rules { counter-reset: r; padding: 0; list-style: none; margin: 0; }
+    .rules li { counter-increment: r; padding: 10px 0 10px 40px; position: relative; border-bottom: 1px solid var(--line); }
+    .rules li::before { content: counter(r); position: absolute; left: 0; top: 10px; width: 26px; height: 26px; border-radius: 6px;
+      border: 1px solid var(--line); display: grid; place-items: center; font-weight: 700; font-size: 0.85rem; color: var(--ink-2); }
+    .shots { display: grid; gap: 14px; grid-template-columns: repeat(2, 1fr); }
+    @media (min-width: 800px) { .shots { grid-template-columns: 1fr 1fr 2fr; } }
+    .shots img { border-radius: 12px; border: 1px solid var(--line); height: 100%; object-fit: cover; object-position: top; }
+    .shots .wide { grid-column: span 2; }
+    @media (min-width: 800px) { .shots .wide { grid-column: auto; } }
+    .callout { border-left: 0; background: color-mix(in oklab, var(--water) 10%, var(--surface)); }
+    table { border-collapse: collapse; width: 100%; }
+    td { padding: 8px 0; border-bottom: 1px solid var(--line); vertical-align: top; }
+    td:first-child { color: var(--ink-2); width: 34%; padding-right: 12px; }
+    footer { padding: 32px 0 48px; border-top: 1px solid var(--line); }
+  </style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="wrap hero-grid">
+    <div>
+      <div class="kicker">TEXMiN UG Fellowship 2026 · VNIT Nagpur</div>
+      <h1>Smart Sump</h1>
+      <p class="tagline">Mine dewatering, minus the guesswork.</p>
+      <p class="lead">A low-cost IoT controller that watches the water level in an opencast-mine sump and switches the dewatering pump on and off by itself. It protects the pump, prevents overflow, and logs every litre pumped.</p>
+      <div class="buttons">
+        <a class="btn primary" href="app/">▶ Try the virtual sump</a>
+        <a class="btn" href="https://github.com/mrk0669/smart-sump/releases/latest/download/SmartSump-Virtual.apk">⬇ Android app</a>
+        <a class="btn" href="https://github.com/mrk0669/smart-sump">Source on GitHub</a>
+      </div>
+      <p class="small" style="margin-top:14px">The virtual sump runs in your browser: no installation and no hardware. Drag the rain cloud for a storm and tap the pump to drive it.</p>
+    </div>
+    <div class="phone-wrap">
+      <div class="phone"><iframe src="app/" title="Smart Sump virtual sump, live" loading="lazy"></iframe></div>
+      <p class="small">Live: this is the real app, running right here.</p>
+    </div>
+  </div>
+</header>
+
+<main>
+  <section>
+    <div class="wrap">
+      <div class="kicker">The problem</div>
+      <h2>The pump is still switched by hand</h2>
+      <p class="lead">Rain and groundwater collect in a sump at the lowest point of the pit. A worker checks the level by eye and starts or stops a large pump, often a 2500 US GPM machine (about 570 m³/h, 133 kW).</p>
+      <div class="grid g2" style="margin-top:20px">
+        <div class="card"><h3>Dry running</h3><p class="muted">Stopped too late, the pump runs without water and damages its impeller and seals.</p></div>
+        <div class="card"><h3>Overflow</h3><p class="muted">Started too late, the sump spills over, the bench floods and muddy water is discharged.</p></div>
+        <div class="card"><h3>No records</h3><p class="muted">Nobody knows the pump hours, the volume pumped or the energy used.</p></div>
+        <div class="card"><h3>No warning</h3><p class="muted">Nothing alerts the crew when a storm fills the sump quickly.</p></div>
+      </div>
+      <div class="grid g3" style="margin-top:16px">
+        <div class="card stat"><b>18 %</b><span class="muted">of an opencast coal mine's energy goes to pumping</span></div>
+        <div class="card stat"><b>+34 %</b><span class="muted">rise in pumping energy per tonne as the pit deepened</span></div>
+        <div class="card stat"><b>2–3 h</b><span class="muted">of peak inflow a sump must hold (DGMS guidance)</span></div>
+      </div>
+      <p class="small" style="margin-top:10px">Sources: Sahoo, Bandyopadhyay &amp; Banerjee, <i>J. Cleaner Production</i> (2014); DGMS pre-monsoon guidance.</p>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <div class="kicker">The solution</div>
+      <h2>Sense. Decide. Switch the pump.</h2>
+      <div class="figure" style="margin:20px 0"><img src="img/system-overview.jpg" alt="System overview: open-cast sump with level sensors, a centrifugal pump switched by the motor controller, a sedimentation tank with a high-level stop, and the water filling point, monitored over WiFi from a phone or web dashboard" loading="lazy" /></div>
+      <div class="grid g3 steps">
+        <div class="card"><h3>Sense</h3><p class="muted">Waterproof ultrasonic level sensors in the sump and the sedimentation tank, with float switches as a backup. Pump current and flow are measured too.</p></div>
+        <div class="card"><h3>Decide</h3><p class="muted">An ESP32 runs the control logic: start at 80 %, stop at 20 %, plus safety interlocks for tank-full, dry-run and sensor faults.</p></div>
+        <div class="card"><h3>Switch &amp; warn</h3><p class="muted">The ESP32 drives the existing starter through a relay. A phone dashboard shows everything live and predicts the <b>minutes left before overflow</b>.</p></div>
+      </div>
+      <div class="card callout" style="margin-top:16px">
+        <h3>Fail-safe first</h3>
+        <p class="muted" style="margin:0">The pump logic runs on the ESP32 itself, so the pump stays safe even if WiFi, the internet or the server fails. A hard-wired float switch in the stop circuit is the last line of defence.</p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap grid g2" style="align-items:start">
+      <div>
+        <div class="kicker">The control logic</div>
+        <h2>Seven rules, checked every half second</h2>
+        <p class="muted">The same rules run in the simulator, the phone app and (next) the ESP32 firmware. 33 automated tests cover every rule, and a cross-check proves the app and the Python reference give identical results.</p>
+        <ol class="rules">
+          <li><b>Tank full:</b> pump off and locked until the tank drains 10 % below the limit.</li>
+          <li><b>Sensor fault:</b> no valid level for 10 s, so fall back to the float switches.</li>
+          <li><b>Dry run / blockage:</b> pump on but current or flow too low, so stop it and lock out.</li>
+          <li><b>Start:</b> sump ≥ 80 % and the motor has rested long enough.</li>
+          <li><b>Stop:</b> sump ≤ 20 % and the pump has run long enough.</li>
+          <li><b>Backup floats:</b> the high float forces a start and the low float forces a stop.</li>
+          <li><b>Manual:</b> the operator drives the pump, but rules 1 and 3 still apply.</li>
+        </ol>
+      </div>
+      <div class="figure"><img src="img/control-flowchart.png" alt="Control flowchart: check tank full, then sump high to start, sump low to stop, dry run to stop with an alarm, then compute the time to overflow and publish over MQTT" loading="lazy" /></div>
+    </div>
+  </section>
+
+  <section id="try">
+    <div class="wrap">
+      <div class="kicker">Try it</div>
+      <h2>A virtual sump you can play with</h2>
+      <p class="lead">The whole system runs in your browser or as an Android app: a simulated pit driven by the real control logic. Make it rain, block the strainer, close the tank outlet, and watch the controller react.</p>
+      <div class="shots" style="margin:20px 0">
+        <img src="img/app-pit-storm.jpg" alt="Phone app: storm. The rain cloud is dragged down, the sump overflows onto the pit floor while the pump runs" loading="lazy" />
+        <img src="img/app-pit-dryrun.jpg" alt="Phone app in dark mode: dry-run lockout with a locked pump and alerts" loading="lazy" />
+        <img class="wide" src="img/dashboard-overview.jpg" alt="Web dashboard: live system diagram, AUTO/MANUAL control and readouts" loading="lazy" />
+      </div>
+      <div class="grid g3">
+        <div class="card"><h3>Touch the pit</h3><p class="muted">Drag the cloud for a storm, tap the pump to drive it, and read a plain-words explanation of every decision.</p></div>
+        <div class="card"><h3>Lab model or mine</h3><p class="muted">An 80 L lab sump, or a 40 × 30 × 4 m mine sump with a 2500 GPM pump. Run it at up to 1000× speed.</p></div>
+        <div class="card"><h3>Sump calculator</h3><p class="muted">Volume, fill and pump-down times, pump starts, energy and cost, and the DGMS storm-storage check. Then simulate your own sump.</p></div>
+      </div>
+      <div class="buttons">
+        <a class="btn primary" href="app/">▶ Open the virtual sump</a>
+        <a class="btn" href="https://github.com/mrk0669/smart-sump/releases/latest/download/SmartSump-Virtual.apk">⬇ Download the Android app</a>
+      </div>
+      <p class="small">Android 8.0+, about 340 KB, works offline. Android asks once to allow installing an app from outside the Play Store.</p>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap grid g2" style="align-items:start">
+      <div>
+        <div class="kicker">Progress</div>
+        <h2>Built and tested so far</h2>
+        <ul class="ticks">
+          <li>Control logic with 33 unit tests, one or more per rule, plus no-chatter checks</li>
+          <li>Simulator with water physics and 6 scenarios: normal, heavy rain, dry run, tank full, WiFi drop, sensor fault</li>
+          <li>MQTT messaging exactly like the ESP32, including "device offline" detection</li>
+          <li>Logger: history database, daily report (pump hours, m³, kWh, ₹), CSV export, Telegram alerts</li>
+          <li>Phone-first web dashboard and this virtual-sump app</li>
+        </ul>
+        <ul class="ticks next">
+          <li>ESP32 firmware (PlatformIO), with the same rules ported to C++</li>
+          <li>Lab model: two 50–100 L tanks and a 0.5 HP pump, then testing</li>
+          <li>Scale-up design for a 2500 GPM pump: panel interface, BOM and cost</li>
+        </ul>
+      </div>
+      <div class="card">
+        <div class="kicker">Team</div>
+        <table>
+          <tr><td>Student</td><td><b>Golsar Keshav Kalyanrao</b><br /><span class="muted">B.Tech Mining Engineering, VNIT Nagpur</span></td></tr>
+          <tr><td>Mentor</td><td><b>Dr. Nikhil Ninad Sirdesai</b><br /><span class="muted">Assistant Professor</span></td></tr>
+          <tr><td>Programme</td><td>TEXMiN UG Fellowship 2026</td></tr>
+          <tr><td>Domain</td><td>Monitoring and Tracking Technologies for Mines</td></tr>
+          <tr><td>Plan</td><td>24 weeks, about ₹12,500 for the lab prototype</td></tr>
+          <tr><td>Stack</td><td>ESP32 · MQTT · Python · React</td></tr>
+        </table>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap small">
+    Smart Sump · TEXMiN UG Fellowship 2026, VNIT Nagpur ·
+    <a href="https://github.com/mrk0669/smart-sump">github.com/mrk0669/smart-sump</a>
+  </div>
+</footer>
+
+</body>
+</html>

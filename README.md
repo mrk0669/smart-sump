@@ -12,6 +12,8 @@
 
 ![Smart Sump system overview: open-cast sump with WiFi level sensors, centrifugal pump driven by the motor controller, sedimentation tank with a high-level stop, and the water filling point, monitored from a phone or web dashboard](docs/img/system-overview.jpg)
 
+> 🌐 **Website:** **https://mrk0669.github.io/smart-sump/**: the project in one page, with the virtual sump running live in your browser.
+>
 > 📱 **Try it on your phone:** the **Smart Sump Virtual** Android app runs the whole system, a simulated sump plus the real control logic, offline on the phone. It includes a sump calculator. See [Phone app](#-phone-app-the-virtual-sump).
 
 ---
@@ -177,7 +179,7 @@ An Android app (APK, about 330 KB) that needs **no hardware, no internet and no 
 - **Sump calculator:** enter the sump size, pump GPM, motor kW and inflows. You get volume, fill and pump-down times, pump starts, daily pumping hours, energy (kWh) and cost (₹), the **DGMS check** (does the sump hold 2–3 h of peak storm inflow?) and how long until overflow in a storm. **"Simulate this sump"** then runs your numbers in the virtual sump.
 - **Same brain as the real device:** the app's simulator is a TypeScript copy of `simulator/`. `python tools/crosscheck.py` runs both on every scenario and checks they produce the same events at the same times. They do: 97 events across 6 scenarios.
 
-**Install:** copy `SmartSump-Virtual.apk` to the phone (WhatsApp, Drive, USB), tap it, and allow "Install unknown apps" when Android asks. Android 8.0 or newer.
+**Install:** download it from the [latest release](https://github.com/mrk0669/smart-sump/releases/latest/download/SmartSump-Virtual.apk), or copy `SmartSump-Virtual.apk` to the phone (WhatsApp, Drive, USB), tap it, and allow "Install unknown apps" when Android asks. Android 8.0 or newer.
 
 **Build it yourself:**
 ```powershell
@@ -187,6 +189,8 @@ cd ..\android
 .\gradlew assembleRelease        # needs the Android SDK (ANDROID_HOME) and a JDK
 # result: android\app\build\outputs\apk\release\app-release.apk
 ```
+
+**Website:** GitHub Pages serves the `docs/` folder. `docs/index.html` is the project page; `npm run build:site` (in `dashboard\`) rebuilds the browser version of the app into `docs/app/`.
 
 ## 5. Progress
 

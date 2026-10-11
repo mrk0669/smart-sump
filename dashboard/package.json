@@ -10,7 +10,8 @@
     "build": "tsc --noEmit && vite build",
     "build:apk": "tsc --noEmit && vite build --mode apk",
     "preview": "vite preview",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "build:site": "tsc --noEmit && vite build --mode apk --outDir ../docs/app --emptyOutDir"
   },
   "dependencies": {
     "lucide-react": "^1.54.0",
